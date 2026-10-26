@@ -1,22 +1,22 @@
 import { transcribe } from "../services/audio.service.js";
 
 const AUDIO_TYPES = new Map([
-  [".wav", { types: ["audio/wav", "audio/x-wav", "audio/wave"], geminiType: "audio/wav" }],
-  [".mp3", { types: ["audio/mpeg", "audio/mp3"], geminiType: "audio/mp3" }],
-  [".m4a", { types: ["audio/mp4", "audio/x-m4a", "audio/m4a"], geminiType: "audio/m4a" }],
-  [".ogg", { types: ["audio/ogg"], geminiType: "audio/ogg" }],
-  [".flac", { types: ["audio/flac", "audio/x-flac"], geminiType: "audio/flac" }],
-  [".webm", { types: ["audio/webm"], geminiType: "audio/webm" }],
+  [".wav", { types: ["audio/wav", "audio/x-wav", "audio/wave"], mimeType: "audio/wav" }],
+  [".mp3", { types: ["audio/mpeg", "audio/mp3"], mimeType: "audio/mp3" }],
+  [".m4a", { types: ["audio/mp4", "audio/x-m4a", "audio/m4a"], mimeType: "audio/m4a" }],
+  [".ogg", { types: ["audio/ogg"], mimeType: "audio/ogg" }],
+  [".flac", { types: ["audio/flac", "audio/x-flac"], mimeType: "audio/flac" }],
+  [".webm", { types: ["audio/webm"], mimeType: "audio/webm" }],
 ]);
 
 const SERVICE_ERRORS = {
-  NOT_CONFIGURED: [503, "Gemini API key is not configured on the backend."],
-  AUTHENTICATION_FAILED: [502, "Gemini rejected the API key. Check the backend configuration."],
-  REQUEST_FAILED: [502, "Gemini could not transcribe the audio right now. Please try again."],
-  REQUEST_TIMEOUT: [504, "Gemini took too long to transcribe the audio. Please try again."],
-  RATE_LIMITED: [429, "Gemini request limit reached. Please try again later."],
-  UPSTREAM_UNAVAILABLE: [503, "Gemini is temporarily overloaded. Please try again shortly."],
-  UNPROCESSABLE_AUDIO: [422, "Gemini could not process this audio file. Try another recording."],
+  NOT_CONFIGURED: [503, "Speaches STT is not configured. Check its local URL and model in the backend environment."],
+  UNAVAILABLE: [503, "Speaches is unavailable. Start the local server and try again."],
+  MODEL_UNAVAILABLE: [503, "The configured Speaches STT model is not installed. Check SPEACHES_STT_MODEL."],
+  REQUEST_FAILED: [502, "Speaches could not transcribe the audio. Please try again."],
+  REQUEST_TIMEOUT: [504, "Speaches took too long to transcribe the audio. Please try again."],
+  UNPROCESSABLE_AUDIO: [422, "Speaches could not process this audio file. Try another recording."],
+  EMPTY_TRANSCRIPTION: [422, "No speech was detected in the audio file. Try another recording."],
 };
 
 export async function transcribeAudio(req, res) {
@@ -35,7 +35,10 @@ export async function transcribeAudio(req, res) {
   }
 
   try {
-    const transcription = await transcribe(req.file.buffer, format.geminiType);
+    const started = Date.now();
+    console.info("Speaches STT started");
+    const transcription = await transcribe(req.file.buffer, format.mimeType, req.file.originalname);
+    console.info(`Speaches STT completed in ${Date.now() - started} ms`);
     return res.json({ transcription });
   } catch (error) {
     const knownError = SERVICE_ERRORS[error.code];
@@ -43,7 +46,7 @@ export async function transcribeAudio(req, res) {
       return res.status(knownError[0]).json({ error: knownError[1] });
     }
 
-    console.error("Audio transcription failed:", error);
+    console.error("Speaches STT failed:", error);
     return res.status(500).json({ error: "Something went wrong while transcribing the audio." });
   }
 }

@@ -35,22 +35,25 @@ test("rejects missing, empty, unsupported, and oversized audio", async () => {
   }
 });
 
-test("returns Gemini transcription and sends audio inline", async () => {
+test("returns Speaches transcription and uploads audio as multipart form data", async () => {
   const originalFetch = globalThis.fetch;
-  const originalKey = env.geminiApiKey;
-  env.geminiApiKey = "test-key";
+  const originalBase = env.speachesBaseUrl;
+  const originalModel = env.speachesSttModel;
+  env.speachesBaseUrl = "http://127.0.0.1:8000";
+  env.speachesSttModel = "test-stt-model";
 
   globalThis.fetch = async (url, options) => {
     if (String(url).startsWith(baseUrl)) {
       return originalFetch(url, options);
     }
 
-    assert.match(String(url), /generativelanguage\.googleapis\.com/);
-    assert.equal(options.headers["x-goog-api-key"], "test-key");
-    const body = JSON.parse(options.body);
-    assert.equal(body.contents[0].parts[1].inlineData.mimeType, "audio/wav");
-    assert.equal(body.contents[0].parts[1].inlineData.data, Buffer.from("sample audio").toString("base64"));
-    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Hello there." }] } }] }), {
+    assert.equal(String(url), "http://127.0.0.1:8000/v1/audio/transcriptions");
+    assert.equal(options.body.get("model"), "test-stt-model");
+    const file = options.body.get("file");
+    assert.equal(file.name, "sample.wav");
+    assert.equal(file.type, "audio/wav");
+    assert.equal(Buffer.from(await file.arrayBuffer()).toString(), "sample audio");
+    return new Response(JSON.stringify({ text: "Hello there." }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -65,19 +68,22 @@ test("returns Gemini transcription and sends audio inline", async () => {
     assert.deepEqual(await response.json(), { transcription: "Hello there." });
   } finally {
     globalThis.fetch = originalFetch;
-    env.geminiApiKey = originalKey;
+    env.speachesBaseUrl = originalBase;
+    env.speachesSttModel = originalModel;
   }
 });
 
-test("reports Gemini overload and rate limits clearly", async () => {
+test("reports Speaches model and connection failures clearly", async () => {
   const originalFetch = globalThis.fetch;
-  const originalKey = env.geminiApiKey;
-  env.geminiApiKey = "test-key";
+  const originalBase = env.speachesBaseUrl;
+  const originalModel = env.speachesSttModel;
+  env.speachesBaseUrl = "http://127.0.0.1:8000";
+  env.speachesSttModel = "test-stt-model";
 
   try {
     for (const [upstreamStatus, expectedStatus, message] of [
-      [503, 503, /temporarily overloaded/],
-      [429, 429, /request limit reached/],
+      [404, 503, /model is not installed/],
+      [500, 502, /could not transcribe/],
     ]) {
       globalThis.fetch = async (url, options) => {
         if (String(url).startsWith(baseUrl)) return originalFetch(url, options);
@@ -91,8 +97,20 @@ test("reports Gemini overload and rate limits clearly", async () => {
       assert.equal(response.status, expectedStatus);
       assert.match((await response.json()).error, message);
     }
+
+    globalThis.fetch = async (url, options) => {
+      if (String(url).startsWith(baseUrl)) return originalFetch(url, options);
+      throw new TypeError("Connection refused");
+    };
+    const response = await fetch(`${baseUrl}/api/audio/transcribe`, {
+      method: "POST",
+      body: upload("sample audio", "sample.wav", "audio/wav"),
+    });
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /Speaches is unavailable/);
   } finally {
     globalThis.fetch = originalFetch;
-    env.geminiApiKey = originalKey;
+    env.speachesBaseUrl = originalBase;
+    env.speachesSttModel = originalModel;
   }
 });

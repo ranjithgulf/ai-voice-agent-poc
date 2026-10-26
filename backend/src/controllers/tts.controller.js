@@ -1,16 +1,13 @@
 import { synthesizeSpeech } from "../services/tts.service.js";
 
 const SERVICE_ERRORS = {
-  NOT_CONFIGURED: [503, "Gemini text-to-speech is not configured on the backend."],
-  AUTHENTICATION_FAILED: [502, "Gemini rejected the API key for speech generation."],
-  RATE_LIMITED: [429, "Gemini speech generation request limit reached. Please try again later."],
-  UPSTREAM_UNAVAILABLE: [503, "Gemini speech generation is temporarily unavailable. Please try again shortly."],
-  MODEL_UNAVAILABLE: [502, "The configured Gemini text-to-speech model is unavailable. Check GEMINI_TTS_MODEL."],
-  TIMEOUT: [504, "Gemini took too long to generate speech. Please try again."],
-  UNAVAILABLE: [502, "Could not connect to Gemini for speech generation. Please try again."],
-  UPSTREAM_ERROR: [502, "Gemini could not generate speech right now. Please try again."],
-  EMPTY_AUDIO: [502, "Gemini returned no speech audio. Please try again."],
-  INVALID_AUDIO: [502, "Gemini returned audio in an unexpected format. Please try again."],
+  NOT_CONFIGURED: [503, "Speaches TTS is not configured. Check its local URL, model, and voice in the backend environment."],
+  MODEL_UNAVAILABLE: [503, "The configured Speaches TTS model is not installed. Check SPEACHES_TTS_MODEL."],
+  TIMEOUT: [504, "Speaches took too long to generate speech. Please try again."],
+  UNAVAILABLE: [503, "Speaches is unavailable. Start the local server and try again."],
+  UPSTREAM_ERROR: [502, "Speaches could not generate speech. Check the TTS model and voice."],
+  EMPTY_AUDIO: [502, "Speaches returned no speech audio. Please try again."],
+  INVALID_AUDIO: [502, "Speaches returned audio in an unexpected format. Please try again."],
 };
 
 export async function synthesize(req, res) {
@@ -23,7 +20,10 @@ export async function synthesize(req, res) {
   }
 
   try {
+    const started = Date.now();
+    console.info("Speaches TTS started");
     const audio = await synthesizeSpeech(text.trim());
+    console.info(`Speaches TTS completed in ${Date.now() - started} ms`);
     res.set("Cache-Control", "no-store");
     res.type("audio/wav");
     return res.send(audio);

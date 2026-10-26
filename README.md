@@ -1,10 +1,36 @@
 # 3CX AI Voice Agent POC
 
-This phase supports audio upload, Gemini speech-to-text, a local LM Studio AI response, and Gemini text-to-speech playback. The frontend and backend run separately.
+This phase runs a local voice pipeline: audio upload → Speaches speech-to-text → LM Studio Qwen response → Speaches text-to-speech → browser audio playback. The Next.js frontend and Express backend run separately.
+
+## Local services
+
+Start Speaches at `http://127.0.0.1:8000` and LM Studio at `http://127.0.0.1:1235/v1`. The backend reads these settings from its ignored `.env` file:
+
+```env
+PORT=3001
+LM_STUDIO_BASE_URL=http://127.0.0.1:1235/v1
+LM_STUDIO_MODEL=qwen3.5-4b-3d-coder
+LM_STUDIO_SYSTEM_PROMPT=You are a helpful voice assistant. Respond naturally and concisely in conversational language. Avoid markdown and lists unless needed.
+SPEACHES_BASE_URL=http://127.0.0.1:8000
+SPEACHES_STT_MODEL=Systran/faster-whisper-tiny.en
+SPEACHES_TTS_MODEL=speaches-ai/piper-en_US-amy-low
+SPEACHES_TTS_VOICE=amy
+```
+
+The two Speaches models are small English language models suitable for the development laptop. Download them once through the Speaches model API if they are missing:
+
+```powershell
+Invoke-WebRequest -Method Post http://127.0.0.1:8000/v1/models/Systran/faster-whisper-tiny.en
+Invoke-WebRequest -Method Post http://127.0.0.1:8000/v1/models/speaches-ai/piper-en_US-amy-low
+```
+
+Verify installation with `http://127.0.0.1:8000/v1/models`. If LM Studio cannot load Qwen on this machine, run:
+
+```powershell
+lms load qwen3.5-4b-3d-coder --gpu off --context-length 2048 --no-speculative-draft-mtp
+```
 
 ## Backend
-
-Install dependencies in `backend`, and set `GEMINI_API_KEY` in the ignored `backend/.env` file. Copy `backend/.env.example` when setting up another machine. Keep Gemini and LM Studio settings on the backend.
 
 ```powershell
 cd backend
@@ -12,29 +38,8 @@ npm install
 npm run dev
 ```
 
-The backend listens on http://localhost:3001 by default.
+Express listens on port 3001. `POST /api/audio/transcribe` accepts multipart audio; `POST /api/ai/chat` accepts `{ "text": "..." }` and returns `{ "response": "..." }`; `POST /api/tts/synthesize` accepts `{ "text": "..." }` and returns WAV audio. The backend keeps all model URLs private to the server and does not save uploaded audio.
 
-## LM Studio
-
-Start the LM Studio local server on port 1235. The configured chat model is `qwen3.5-4b-3d-coder`; the embedding model is not used. These backend settings are required:
-
-```env
-LM_STUDIO_BASE_URL=http://localhost:1235/v1
-LM_STUDIO_MODEL=qwen3.5-4b-3d-coder
-LM_STUDIO_SYSTEM_PROMPT=You are a helpful voice assistant. Respond naturally and concisely in conversational language. Avoid markdown and lists unless needed.
-```
-
-On this development machine, the model needs MTP speculative drafting disabled to load successfully. If LM Studio cannot load it, use:
-
-```powershell
-lms load qwen3.5-4b-3d-coder --gpu off --context-length 2048 --no-speculative-draft-mtp
-```
-
-The backend calls LM Studio's local `/v1/chat/completions` endpoint. `POST /api/ai/chat` accepts `{ "text": "..." }` and returns `{ "response": "..." }`. Responses use the configured system prompt with reasoning disabled for concise voice agent output.
-
-## Voice response
-
-The backend uses the existing Gemini API key for text-to-speech. `GEMINI_TTS_MODEL` defaults to `gemini-3.8-flash-lite-tts` and `GEMINI_TTS_VOICE` defaults to `Kore`. Both can be set in `backend/.env`. `POST /api/tts/synthesize` accepts `{ "text": "..." }` and returns WAV audio. The key stays on the backend.
 ## Frontend
 
 ```powershell
@@ -43,6 +48,6 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The shared Axios client uses `NEXT_PUBLIC_API_URL=/api` and Next.js forwards requests to the Express backend specified by `BACKEND_URL`.
+Open http://localhost:3000. Choose a WAV, MP3, M4A, OGG, FLAC, or WebM file up to 10 MB and click **Transcribe Audio**. After the transcription appears, click **Generate AI Response**. The response text appears while speech is generated automatically; play the result in the Voice Response section. If speech generation fails, use **Generate Voice Response** to retry.
 
-Choose a WAV, MP3, M4A, OGG, FLAC, or WebM file up to 10 MB. Click **Transcribe Audio**, then **Generate AI Response** after the transcription appears. The AI text remains visible while its voice response is generated automatically. Play it in the Voice Response section; if speech generation fails, use **Generate Voice Response** to retry. 3CX and live streaming are future phases.
+The frontend uses one Axios client and Next.js proxies `/api` requests to Express. Set `BACKEND_URL` on the frontend only if Express runs somewhere other than port 3001. 3CX and live streaming are future phases.

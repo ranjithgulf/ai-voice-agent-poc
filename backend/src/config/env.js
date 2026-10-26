@@ -1,10 +1,10 @@
 import "dotenv/config";
 
 export const env = {
-  geminiApiKey: process.env.GEMINI_API_KEY?.trim(),
-  geminiModel: process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
-  geminiTtsModel: process.env.GEMINI_TTS_MODEL?.trim() || "gemini-3.8-flash-lite-tts",
-  geminiTtsVoice: process.env.GEMINI_TTS_VOICE?.trim() || "Kore",
+  speachesBaseUrl: process.env.SPEACHES_BASE_URL?.trim(),
+  speachesSttModel: process.env.SPEACHES_STT_MODEL?.trim(),
+  speachesTtsModel: process.env.SPEACHES_TTS_MODEL?.trim(),
+  speachesTtsVoice: process.env.SPEACHES_TTS_VOICE?.trim(),
   lmStudioBaseUrl: process.env.LM_STUDIO_BASE_URL?.trim(),
   lmStudioModel: process.env.LM_STUDIO_MODEL?.trim(),
   lmStudioSystemPrompt: process.env.LM_STUDIO_SYSTEM_PROMPT?.trim() ||

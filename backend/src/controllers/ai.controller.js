@@ -21,7 +21,10 @@ export async function chat(req, res) {
   }
 
   try {
+    const started = Date.now();
+    console.info("LM Studio response generation started");
     const response = await generateResponse(text.trim());
+    console.info(`LM Studio response generation completed in ${Date.now() - started} ms`);
     return res.json({ response });
   } catch (error) {
     const knownError = SERVICE_ERRORS[error.code];

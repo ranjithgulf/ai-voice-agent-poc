@@ -29,25 +29,29 @@ test("rejects missing or empty speech text", async () => {
   }
 });
 
-test("sends AI text to Gemini TTS and returns WAV audio", async () => {
+test("sends AI text to Speaches TTS and returns WAV audio", async () => {
   const originalFetch = globalThis.fetch;
-  const originalKey = env.geminiApiKey;
-  env.geminiApiKey = "test-key";
+  const originalBase = env.speachesBaseUrl;
+  const originalModel = env.speachesTtsModel;
+  const originalVoice = env.speachesTtsVoice;
+  env.speachesBaseUrl = "http://127.0.0.1:8000";
+  env.speachesTtsModel = "test-tts-model";
+  env.speachesTtsVoice = "test-voice";
   const wav = Buffer.alloc(44);
   wav.write("RIFF", 0);
   wav.write("WAVE", 8);
 
   globalThis.fetch = async (url, options) => {
     if (String(url).startsWith(baseUrl)) return originalFetch(url, options);
-    assert.equal(String(url), "https://generativelanguage.googleapis.com/v1beta/interactions");
-    assert.equal(options.headers["x-goog-api-key"], "test-key");
+    assert.equal(String(url), "http://127.0.0.1:8000/v1/audio/speech");
     const body = JSON.parse(options.body);
-    assert.equal(body.model, env.geminiTtsModel);
-    assert.equal(body.input[0].content[0].text, "Hello there.");
-    assert.deepEqual(body.generation_config.speech_config, [{ voice: env.geminiTtsVoice }]);
-    return new Response(JSON.stringify({ steps: [{ type: "model_output", content: [{ type: "audio", data: wav.toString("base64") }] }] }), {
+    assert.equal(body.model, "test-tts-model");
+    assert.equal(body.input, "Hello there.");
+    assert.equal(body.voice, "test-voice");
+    assert.equal(body.response_format, "wav");
+    return new Response(wav, {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "audio/wav" },
     });
   };
 
@@ -58,24 +62,32 @@ test("sends AI text to Gemini TTS and returns WAV audio", async () => {
     assert.deepEqual(Buffer.from(await response.arrayBuffer()), wav);
   } finally {
     globalThis.fetch = originalFetch;
-    env.geminiApiKey = originalKey;
+    env.speachesBaseUrl = originalBase;
+    env.speachesTtsModel = originalModel;
+    env.speachesTtsVoice = originalVoice;
   }
 });
 
-test("reports Gemini TTS rate limit clearly", async () => {
+test("reports Speaches TTS model failure clearly", async () => {
   const originalFetch = globalThis.fetch;
-  const originalKey = env.geminiApiKey;
-  env.geminiApiKey = "test-key";
+  const originalBase = env.speachesBaseUrl;
+  const originalModel = env.speachesTtsModel;
+  const originalVoice = env.speachesTtsVoice;
+  env.speachesBaseUrl = "http://127.0.0.1:8000";
+  env.speachesTtsModel = "test-tts-model";
+  env.speachesTtsVoice = "test-voice";
   globalThis.fetch = async (url, options) => String(url).startsWith(baseUrl)
     ? originalFetch(url, options)
-    : new Response("{}", { status: 429 });
+    : new Response("{}", { status: 404 });
 
   try {
     const response = await post("Hello there.");
-    assert.equal(response.status, 429);
-    assert.match((await response.json()).error, /request limit reached/);
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /model is not installed/);
   } finally {
     globalThis.fetch = originalFetch;
-    env.geminiApiKey = originalKey;
+    env.speachesBaseUrl = originalBase;
+    env.speachesTtsModel = originalModel;
+    env.speachesTtsVoice = originalVoice;
   }
 });

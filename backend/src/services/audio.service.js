@@ -1,70 +1,37 @@
 import { env } from "../config/env.js";
+import { speachesEndpoint, speachesError } from "../utils/speaches.js";
 
-function serviceError(code) {
-  return Object.assign(new Error(code), { code });
-}
-
-export async function transcribe(buffer, mimeType) {
-  if (!env.geminiApiKey) {
-    throw serviceError("NOT_CONFIGURED");
-  }
+export async function transcribe(buffer, mimeType, filename) {
+  if (!env.speachesSttModel) throw speachesError("NOT_CONFIGURED");
+  const endpoint = speachesEndpoint("transcriptions");
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: mimeType }), filename);
+  form.append("model", env.speachesSttModel);
+  form.append("response_format", "json");
 
   let response;
   try {
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.geminiModel)}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": env.geminiApiKey,
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: "Transcribe the speech in this audio. Return only the spoken words, without commentary or formatting." },
-              { inlineData: { mimeType, data: buffer.toString("base64") } },
-            ],
-          }],
-        }),
-        signal: AbortSignal.timeout(60_000),
-      },
-    );
+    response = await fetch(endpoint, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(120_000),
+    });
   } catch (error) {
-    throw serviceError(error.name === "TimeoutError" || error.name === "AbortError" ? "REQUEST_TIMEOUT" : "REQUEST_FAILED");
+    throw speachesError(error.name === "TimeoutError" || error.name === "AbortError" ? "REQUEST_TIMEOUT" : "UNAVAILABLE");
   }
 
-  if (response.status === 401 || response.status === 403) {
-    throw serviceError("AUTHENTICATION_FAILED");
-  }
-  if (response.status === 400 || response.status === 422) {
-    throw serviceError("UNPROCESSABLE_AUDIO");
-  }
-  if (response.status === 429) {
-    throw serviceError("RATE_LIMITED");
-  }
-  if (response.status === 503) {
-    throw serviceError("UPSTREAM_UNAVAILABLE");
-  }
-  if (!response.ok) {
-    throw serviceError("REQUEST_FAILED");
-  }
+  if (response.status === 404) throw speachesError("MODEL_UNAVAILABLE");
+  if (response.status === 413 || response.status === 422) throw speachesError("UNPROCESSABLE_AUDIO");
+  if (!response.ok) throw speachesError("REQUEST_FAILED");
 
   let data;
   try {
     data = await response.json();
   } catch {
-    throw serviceError("REQUEST_FAILED");
+    throw speachesError("REQUEST_FAILED");
   }
 
-  const text = data.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text || "")
-    .join("")
-    .trim();
-
-  if (!text) {
-    throw serviceError("UNPROCESSABLE_AUDIO");
-  }
-
+  const text = data?.text?.trim();
+  if (!text) throw speachesError("EMPTY_TRANSCRIPTION");
   return text;
 }
