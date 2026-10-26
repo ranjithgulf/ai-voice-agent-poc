@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { transcribeAudio } from "@/services/audio.service";
 import { generateAIResponse } from "@/services/ai.service";
 import { generateSpeech } from "@/services/tts.service";
@@ -12,6 +12,7 @@ function formatFileSize(bytes) {
 }
 
 export default function Home() {
+  const voicePlayerRef = useRef(null);
   const [file, setFile] = useState(null);
   const [audioUrl, setAudioUrl] = useState("");
   const [transcription, setTranscription] = useState("");
@@ -39,58 +40,47 @@ export default function Home() {
     if (voiceAudioUrl) URL.revokeObjectURL(voiceAudioUrl);
   }, [voiceAudioUrl]);
 
-  function handleFileChange(event) {
-    setFile(event.target.files?.[0] || null);
+  useEffect(() => {
+    if (!voiceAudioUrl) return;
+    voicePlayerRef.current?.play().catch(() => {
+      // Browser autoplay may be blocked; the player remains available.
+    });
+  }, [voiceAudioUrl]);
+
+  async function handleFileChange(event) {
+    const selectedFile = event.target.files?.[0] || null;
+    event.target.value = "";
+    setFile(selectedFile);
     setError("");
     setTranscription("");
     setAiResponse("");
     setAiError("");
     setVoiceAudioUrl("");
     setVoiceError("");
-  }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setError("");
-    setTranscription("");
-    setAiResponse("");
-    setAiError("");
-    setVoiceAudioUrl("");
-    setVoiceError("");
-
-    if (!file) {
-      setError("Select an audio file to transcribe.");
-      return;
-    }
+    if (!selectedFile) return;
 
     setLoading(true);
+    let transcribedText;
 
     try {
-      const result = await transcribeAudio(file);
-      setTranscription(result.transcription);
+      const result = await transcribeAudio(selectedFile);
+      transcribedText = result.transcription?.trim();
+      if (!transcribedText) throw new Error("No speech was detected in the audio file.");
+      setTranscription(transcribedText);
     } catch (caught) {
       setError(caught.message);
+      return;
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handleGenerateResponse() {
-    if (!transcription.trim()) {
-      setAiError("Transcribe an audio file first.");
-      return;
-    }
 
     setAiLoading(true);
-    setAiError("");
-    setAiResponse("");
-    setVoiceAudioUrl("");
-    setVoiceError("");
-
     let responseText;
     try {
-      const result = await generateAIResponse(transcription);
-      responseText = result.response;
+      const result = await generateAIResponse(transcribedText);
+      responseText = result.response?.trim();
+      if (!responseText) throw new Error("The local AI returned an empty response.");
       setAiResponse(responseText);
     } catch (caught) {
       setAiError(caught.message);
@@ -99,16 +89,9 @@ export default function Home() {
       setAiLoading(false);
     }
 
-    await handleGenerateSpeech(responseText);
-  }
-
-  async function handleGenerateSpeech(text = aiResponse) {
-    if (!text.trim()) return;
     setVoiceLoading(true);
-    setVoiceError("");
-    setVoiceAudioUrl("");
     try {
-      const audio = await generateSpeech(text);
+      const audio = await generateSpeech(responseText);
       setVoiceAudioUrl(URL.createObjectURL(audio));
     } catch (caught) {
       setVoiceError(caught.message);
@@ -144,10 +127,12 @@ export default function Home() {
                 <p className="section-kicker">Input</p>
                 <h2 id="audio-heading">Audio file</h2>
               </div>
-              <span className="status ready">Ready</span>
+              <span className={`status ${loading || aiLoading || voiceLoading ? "processing" : error || aiError || voiceError ? "error" : voiceAudioUrl ? "complete" : "ready"}`}>
+                {loading || aiLoading || voiceLoading ? "Processing" : error || aiError || voiceError ? "Error" : voiceAudioUrl ? "Complete" : "Ready"}
+              </span>
             </div>
 
-            <form onSubmit={handleSubmit} className="transcription-form">
+            <div className="transcription-form">
               <label htmlFor="audio" className="file-label">Choose a recording</label>
               <input
                 id="audio"
@@ -157,7 +142,7 @@ export default function Home() {
                 onChange={handleFileChange}
                 disabled={loading || aiLoading || voiceLoading}
               />
-              <p className="file-hint">WAV, MP3, M4A, OGG, FLAC, or WebM. Max 10 MB.</p>
+              <p className="file-hint">WAV, MP3, M4A, OGG, FLAC, or WebM. Max 10 MB. Processing starts when you choose a file.</p>
 
               <div className="file-details" aria-live="polite">
                 <div><span>Name</span><strong>{file?.name || "No file selected"}</strong></div>
@@ -170,10 +155,7 @@ export default function Home() {
                 <audio controls src={audioUrl || undefined} aria-label="Selected audio preview" />
               </div>
 
-              <button type="submit" disabled={loading || aiLoading || voiceLoading}>
-                {loading ? "Transcribing..." : "Transcribe Audio"}
-              </button>
-            </form>
+            </div>
           </section>
 
           <div className="output-sections">
@@ -183,8 +165,8 @@ export default function Home() {
                   <p className="section-kicker">Step 02</p>
                   <h2 id="transcription-heading">Speech-to-Text</h2>
                 </div>
-                <span className={`status ${loading ? "processing" : transcription ? "complete" : "ready"}`}>
-                  {loading ? "Processing" : transcription ? "Complete" : "Ready"}
+                <span className={`status ${loading ? "processing" : error ? "error" : transcription ? "complete" : "ready"}`}>
+                  {loading ? "Processing" : error ? "Error" : transcription ? "Complete" : "Ready"}
                 </span>
               </div>
               {error ? <p className="error-message" role="alert">{error}</p> : null}
@@ -199,22 +181,14 @@ export default function Home() {
                   <p className="section-kicker">Step 03</p>
                   <h2 id="ai-heading">AI Response</h2>
                 </div>
-                <span className={`status ${aiLoading ? "processing" : aiResponse ? "complete" : transcription ? "ready" : "pending"}`}>
-                  {aiLoading ? "Processing" : aiResponse ? "Complete" : transcription ? "Ready" : "Pending"}
+                <span className={`status ${aiLoading ? "processing" : aiError ? "error" : aiResponse ? "complete" : transcription ? "ready" : "pending"}`}>
+                  {aiLoading ? "Processing" : aiError ? "Error" : aiResponse ? "Complete" : transcription ? "Ready" : "Pending"}
                 </span>
               </div>
               {aiError ? <p className="error-message" role="alert">{aiError}</p> : null}
               <p className={aiResponse ? "transcription-text" : "empty-state"}>
                 {aiLoading ? "Generating response..." : aiResponse || "Waiting for AI processing..."}
               </p>
-              <button
-                type="button"
-                className="ai-button"
-                onClick={handleGenerateResponse}
-                disabled={!transcription || loading || aiLoading || voiceLoading}
-              >
-                {aiLoading ? "Generating..." : "Generate AI Response"}
-              </button>
             </section>
 
             <section className="output-section" aria-labelledby="voice-heading">
@@ -223,22 +197,17 @@ export default function Home() {
                   <p className="section-kicker">Step 04</p>
                   <h2 id="voice-heading">Voice Response</h2>
                 </div>
-                <span className={`status ${voiceLoading ? "processing" : voiceAudioUrl ? "complete" : aiResponse ? "ready" : "pending"}`}>
-                  {voiceLoading ? "Processing" : voiceAudioUrl ? "Complete" : aiResponse ? "Ready" : "Pending"}
+                <span className={`status ${voiceLoading ? "processing" : voiceError ? "error" : voiceAudioUrl ? "complete" : aiResponse ? "ready" : "pending"}`}>
+                  {voiceLoading ? "Processing" : voiceError ? "Error" : voiceAudioUrl ? "Complete" : aiResponse ? "Ready" : "Pending"}
                 </span>
               </div>
               {voiceError ? <p className="error-message" role="alert">{voiceError}</p> : null}
               <p className="empty-state" aria-live="polite">
-                {voiceLoading ? "Generating voice response..." : voiceAudioUrl ? "Voice response ready to play." : "No audio response generated yet."}
+                {voiceLoading ? "Generating voice response..." : voiceAudioUrl ? "Voice response ready. Press play if your browser blocks automatic playback." : "No audio response generated yet."}
               </p>
               <div className="player-group output-player">
-                <audio controls src={voiceAudioUrl || undefined} aria-label="Voice response playback" />
+                <audio ref={voicePlayerRef} controls src={voiceAudioUrl || undefined} aria-label="Voice response playback" />
               </div>
-              {aiResponse && !voiceLoading && !voiceAudioUrl ? (
-                <button type="button" className="ai-button" onClick={() => handleGenerateSpeech()}>
-                  Generate Voice Response
-                </button>
-              ) : null}
             </section>
           </div>
         </div>

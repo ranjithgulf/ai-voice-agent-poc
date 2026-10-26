@@ -152,6 +152,11 @@ h2 {
   color: #697470;
 }
 
+.status.error {
+  background: #fbeeea;
+  color: #94352d;
+}
+
 .transcription-form {
   display: flex;
   flex-direction: column;
@@ -236,28 +241,6 @@ audio {
   height: 54px;
 }
 
-button {
-  min-height: 44px;
-  border: 0;
-  border-radius: 4px;
-  padding: 0.7rem 1.15rem;
-  background: #17675e;
-  color: #fff;
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-button:hover:not(:disabled) {
-  background: #10544d;
-}
-
-button:disabled {
-  opacity: 0.65;
-  cursor: wait;
-}
-
 .output-sections {
   border-top: 1px solid #ced8d5;
 }
@@ -299,10 +282,6 @@ button:disabled {
 .output-player {
   max-width: 440px;
   margin: 1.25rem 0 0;
-}
-
-.ai-button {
-  margin-top: 1.4rem;
 }
 
 @media (max-width: 760px) {

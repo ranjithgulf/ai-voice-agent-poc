@@ -48,6 +48,6 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Choose a WAV, MP3, M4A, OGG, FLAC, or WebM file up to 10 MB and click **Transcribe Audio**. After the transcription appears, click **Generate AI Response**. The response text appears while speech is generated automatically; play the result in the Voice Response section. If speech generation fails, use **Generate Voice Response** to retry.
+Open http://localhost:3000 and choose a WAV, MP3, M4A, OGG, FLAC, or WebM file up to 10 MB. File selection automatically starts transcription, generates a local AI response, and creates the voice response. The page shows each result as it completes and attempts to play the generated audio. If the browser blocks automatic playback, use the audio player. Choose the file again to retry after an error.
 
 The frontend uses one Axios client and Next.js proxies `/api` requests to Express. Set `BACKEND_URL` on the frontend only if Express runs somewhere other than port 3001. 3CX and live streaming are future phases.
