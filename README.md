@@ -35,10 +35,24 @@ lms load qwen3.5-4b-3d-coder --gpu off --context-length 2048 --no-speculative-dr
 ```powershell
 cd backend
 npm install
+npm run db:generate
 npm run dev
 ```
 
-Express listens on port 3001. `POST /api/audio/transcribe` accepts multipart audio; `POST /api/ai/chat` accepts `{ "text": "..." }` and returns `{ "response": "..." }`; `POST /api/tts/synthesize` accepts `{ "text": "..." }` and returns WAV audio. The backend keeps all model URLs private to the server and does not save uploaded audio.
+Express listens on port 3001. `POST /api/audio/transcribe` accepts multipart audio; `POST /api/ai/chat` accepts `{ "text": "..." }` and returns `{ "response": "..." }`; `POST /api/tts/synthesize` accepts `{ "text": "..." }` and returns WAV audio. The backend keeps all model URLs private to the server.
+
+## PostgreSQL persistence
+
+Prisma is prepared for a local PostgreSQL database. Set `DATABASE_URL` in the ignored `backend/.env` file, for example `postgresql://postgres:YOUR_PASSWORD@127.0.0.1:5432/voice_agent`. Create the `voice_agent` database locally, then apply the prepared migration when PostgreSQL is ready:
+
+```powershell
+cd backend
+npm run db:migrate
+```
+
+The `VoiceInteraction` migration has been applied to the local `voice_agent` database. After speech generation succeeds, the frontend sends the original audio, transcription, AI text, and generated WAV to `POST /api/interactions`. The backend creates one row containing all four results and returns its ID and creation time. If saving fails, the generated audio remains playable and the page shows an error.
+
+`GET /api/interactions` lists the 20 newest saved records without loading their binary audio. `GET /api/interactions/:id/audio/input` and `/api/interactions/:id/audio/response` return the exact saved audio bytes with the correct media type.
 
 ## Frontend
 
@@ -49,5 +63,7 @@ npm run dev
 ```
 
 Open http://localhost:3000 and choose a WAV, MP3, M4A, OGG, FLAC, or WebM file up to 10 MB. File selection automatically starts transcription, generates a local AI response, and creates the voice response. The page shows each result as it completes and attempts to play the generated audio. If the browser blocks automatic playback, use the audio player. Choose the file again to retry after an error.
+
+Scroll to **Recent interactions** to play either the original recording or the AI response from PostgreSQL after refreshing the page.
 
 The frontend uses one Axios client and Next.js proxies `/api` requests to Express. Set `BACKEND_URL` on the frontend only if Express runs somewhere other than port 3001. 3CX and live streaming are future phases.

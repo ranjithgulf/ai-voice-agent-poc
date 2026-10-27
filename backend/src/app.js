@@ -3,6 +3,7 @@ import multer from "multer";
 import audioRoutes from "./routes/audio.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import ttsRoutes from "./routes/tts.routes.js";
+import interactionRoutes from "./routes/interaction.routes.js";
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.get("/", (_req, res) => {
 app.use("/api/audio", audioRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/tts", ttsRoutes);
+app.use("/api/interactions", interactionRoutes);
 
 app.use((error, _req, res, next) => {
   if (error instanceof multer.MulterError) {

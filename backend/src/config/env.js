@@ -9,5 +9,6 @@ export const env = {
   lmStudioModel: process.env.LM_STUDIO_MODEL?.trim(),
   lmStudioSystemPrompt: process.env.LM_STUDIO_SYSTEM_PROMPT?.trim() ||
     "You are a helpful voice assistant. Respond naturally and concisely in conversational language. Avoid markdown and lists unless needed.",
+  databaseUrl: process.env.DATABASE_URL?.trim(),
   port: Number(process.env.PORT) || 3001,
 };

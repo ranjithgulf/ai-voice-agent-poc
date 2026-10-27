@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { transcribeAudio } from "@/services/audio.service";
 import { generateAIResponse } from "@/services/ai.service";
 import { generateSpeech } from "@/services/tts.service";
+import { listSavedInteractions, saveInteraction, savedAudioUrl } from "@/services/interaction.service";
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -22,6 +23,13 @@ export default function Home() {
   const [voiceAudioUrl, setVoiceAudioUrl] = useState("");
   const [voiceError, setVoiceError] = useState("");
   const [voiceLoading, setVoiceLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [savedInteraction, setSavedInteraction] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+  const [playbackError, setPlaybackError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -47,6 +55,21 @@ export default function Home() {
     });
   }, [voiceAudioUrl]);
 
+  useEffect(() => {
+    let active = true;
+    listSavedInteractions()
+      .then((interactions) => {
+        if (active) setHistory(interactions);
+      })
+      .catch((caught) => {
+        if (active) setHistoryError(caught.message);
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
   async function handleFileChange(event) {
     const selectedFile = event.target.files?.[0] || null;
     event.target.value = "";
@@ -57,6 +80,8 @@ export default function Home() {
     setAiError("");
     setVoiceAudioUrl("");
     setVoiceError("");
+    setSaveError("");
+    setSavedInteraction(null);
 
     if (!selectedFile) return;
 
@@ -90,13 +115,31 @@ export default function Home() {
     }
 
     setVoiceLoading(true);
+    let responseAudio;
     try {
-      const audio = await generateSpeech(responseText);
-      setVoiceAudioUrl(URL.createObjectURL(audio));
+      responseAudio = await generateSpeech(responseText);
+      setVoiceAudioUrl(URL.createObjectURL(responseAudio));
     } catch (caught) {
       setVoiceError(caught.message);
+      return;
     } finally {
       setVoiceLoading(false);
+    }
+
+    setSaving(true);
+    try {
+      const saved = await saveInteraction(selectedFile, transcribedText, responseText, responseAudio);
+      setSavedInteraction(saved);
+      try {
+        setHistory(await listSavedInteractions());
+        setHistoryError("");
+      } catch (caught) {
+        setHistoryError(caught.message);
+      }
+    } catch (caught) {
+      setSaveError(caught.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -127,8 +170,8 @@ export default function Home() {
                 <p className="section-kicker">Input</p>
                 <h2 id="audio-heading">Audio file</h2>
               </div>
-              <span className={`status ${loading || aiLoading || voiceLoading ? "processing" : error || aiError || voiceError ? "error" : voiceAudioUrl ? "complete" : "ready"}`}>
-                {loading || aiLoading || voiceLoading ? "Processing" : error || aiError || voiceError ? "Error" : voiceAudioUrl ? "Complete" : "Ready"}
+              <span className={`status ${loading || aiLoading || voiceLoading || saving ? "processing" : error || aiError || voiceError || saveError ? "error" : savedInteraction ? "complete" : "ready"}`}>
+                {loading || aiLoading || voiceLoading || saving ? "Processing" : error || aiError || voiceError || saveError ? "Error" : savedInteraction ? "Complete" : "Ready"}
               </span>
             </div>
 
@@ -140,7 +183,7 @@ export default function Home() {
                 type="file"
                 accept=".wav,.mp3,.m4a,.ogg,.flac,.webm,audio/*"
                 onChange={handleFileChange}
-                disabled={loading || aiLoading || voiceLoading}
+                disabled={loading || aiLoading || voiceLoading || saving}
               />
               <p className="file-hint">WAV, MP3, M4A, OGG, FLAC, or WebM. Max 10 MB. Processing starts when you choose a file.</p>
 
@@ -208,9 +251,54 @@ export default function Home() {
               <div className="player-group output-player">
                 <audio ref={voicePlayerRef} controls src={voiceAudioUrl || undefined} aria-label="Voice response playback" />
               </div>
+              {saving ? <p className="empty-state" aria-live="polite">Saving the completed interaction...</p> : null}
+              {savedInteraction ? <p className="save-success" aria-live="polite">Interaction saved for review.</p> : null}
+              {saveError ? <p className="error-message" role="alert">Audio is ready, but saving failed: {saveError}</p> : null}
             </section>
           </div>
         </div>
+
+        <section className="history-section" aria-labelledby="history-heading">
+          <div className="section-heading">
+            <div>
+              <p className="section-kicker">Saved recordings</p>
+              <h2 id="history-heading">Recent interactions</h2>
+            </div>
+            <span className="status ready">Latest 20</span>
+          </div>
+          {historyError ? <p className="error-message" role="alert">Could not load saved interactions: {historyError}</p> : null}
+          {historyLoading ? <p className="empty-state">Loading saved interactions...</p> : null}
+          {!historyLoading && !historyError && history.length === 0 ? <p className="empty-state">No saved interactions yet.</p> : null}
+          {playbackError ? <p className="error-message" role="alert">{playbackError}</p> : null}
+          <div className="history-list">
+            {history.map((item) => (
+              <article className="history-item" key={item.id}>
+                <div className="history-item-heading">
+                  <strong>{item.inputFileName}</strong>
+                  <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time>
+                </div>
+                <p><span>Caller:</span> {item.transcription}</p>
+                <p><span>AI:</span> {item.aiResponseText}</p>
+                <div className="history-players">
+                  <div>
+                    <span className="field-label">Original audio</span>
+                    <audio controls preload="none" src={savedAudioUrl(item.id, "input")}
+                      aria-label={`Original audio for ${item.inputFileName}`}
+                      onError={() => setPlaybackError("Could not play a saved recording. Check that the backend and database are running.")}
+                      onPlay={() => setPlaybackError("")} />
+                  </div>
+                  <div>
+                    <span className="field-label">AI response audio</span>
+                    <audio controls preload="none" src={savedAudioUrl(item.id, "response")}
+                      aria-label={`AI response audio for ${item.inputFileName}`}
+                      onError={() => setPlaybackError("Could not play a saved recording. Check that the backend and database are running.")}
+                      onPlay={() => setPlaybackError("")} />
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </main>
     </>
   );

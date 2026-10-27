@@ -279,6 +279,62 @@ audio {
   line-height: 1.5;
 }
 
+.save-success {
+  margin: 1rem 0 0;
+  color: #156552;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.history-section {
+  margin-top: 3rem;
+  border-top: 1px solid #ced8d5;
+  padding-top: 2rem;
+}
+
+.history-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.history-item {
+  border: 1px solid #d6dfdc;
+  border-radius: 4px;
+  padding: 1.2rem;
+  background: #fff;
+}
+
+.history-item-heading {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.history-item-heading time,
+.history-item p span {
+  color: #65736e;
+  font-size: 0.85rem;
+}
+
+.history-item p {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.history-players {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.history-players .field-label {
+  margin-bottom: 0.4rem;
+}
+
 .output-player {
   max-width: 440px;
   margin: 1.25rem 0 0;
@@ -301,6 +357,10 @@ audio {
 
   .workflow-step {
     min-height: 54px;
+  }
+
+  .history-players {
+    grid-template-columns: 1fr;
   }
 }
 

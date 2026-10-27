@@ -16,6 +16,14 @@ const nextConfig = {
         source: "/api/tts/synthesize",
         destination: `${process.env.BACKEND_URL || "http://localhost:3001"}/api/tts/synthesize`,
       },
+      {
+        source: "/api/interactions",
+        destination: `${process.env.BACKEND_URL || "http://localhost:3001"}/api/interactions`,
+      },
+      {
+        source: "/api/interactions/:id/audio/:kind",
+        destination: `${process.env.BACKEND_URL || "http://localhost:3001"}/api/interactions/:id/audio/:kind`,
+      },
     ];
   },
 };

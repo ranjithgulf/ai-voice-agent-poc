@@ -1,0 +1,21 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model VoiceInteraction {
+  id                     String   @id @default(uuid()) @db.Uuid
+  createdAt              DateTime @default(now())
+  inputFileName          String
+  inputMimeType          String
+  inputAudio             Bytes
+  inputAudioBytes        Int
+  transcription          String   @db.Text
+  aiResponseText         String   @db.Text
+  responseAudio          Bytes
+  responseMimeType       String
+  responseAudioBytes     Int
+}
